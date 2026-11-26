@@ -19,7 +19,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import config as C
-from dataset import ImageRows
+from dataset import ImageRows, subtype_of
 from model import SharedMagClassifier
 
 
@@ -53,6 +53,9 @@ def main():
     ap.add_argument("--img-size", type=int, default=C.IMG_SIZE)
     ap.add_argument("--workers", type=int, default=0, help="0 is safest on Windows")
     ap.add_argument("--freeze-stages", type=int, default=0, help="freeze stem + first N stages (0-4); 2 is a good CPU setting")
+    ap.add_argument("--subtype-weight", choices=["none", "balanced"], default="none",
+                    help="balanced = weight every training image by 1/(frequency of its tumour SUBTYPE) so rare "
+                         "subtypes (mucinous, papillary...) count as much as common ones; replaces the 2-class weights")
     ap.add_argument("--no-pretrained", action="store_true", help="only for offline smoke tests")
     ap.add_argument("--tag", default=None, help="name of this run (default: seed<k>)")
     args = ap.parse_args()
@@ -72,6 +75,18 @@ def main():
     weights = counts.sum() / (len(counts) * counts)
     print("class counts", counts.astype(int).tolist(), "-> weights", weights.round(4).tolist())
     criterion = nn.CrossEntropyLoss(weight=torch.tensor(weights, dtype=torch.float32, device=device))
+    sub_w = None
+    if args.subtype_weight == "balanced":
+        st = tr["filename"].map(subtype_of).reset_index(drop=True)      # TRAIN images only
+        n_by = st.value_counts()
+        w_by = len(st) / (len(n_by) * n_by)                              # inverse frequency, K = subtypes present
+        w_img = st.map(w_by).values.astype(np.float32)
+        mean_w = float(w_img.mean())
+        sw = w_img / mean_w                                              # keep the average weight at 1
+        sub_w = torch.tensor(sw, device=device)
+        criterion = nn.CrossEntropyLoss(reduction="none")                # weights applied per sample below
+        print("subtype image counts:", n_by.to_dict())
+        print("subtype weights (mean 1):", {k: round(float(v) / mean_w, 3) for k, v in w_by.items()})
     val_criterion = nn.CrossEntropyLoss()  # UNweighted val loss: a clean number to compare epochs
 
     g = torch.Generator().manual_seed(args.seed)
@@ -100,12 +115,14 @@ def main():
         t0 = time.time()
         model.train()
         loss_sum, correct, n = 0.0, 0, 0
-        for x, y, _ in tl:
+        for x, y, idx in tl:
             x, y = x.to(device), y.to(device)
             opt.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type, enabled=use_amp):
                 out = model(x)
                 loss = criterion(out, y)
+                if sub_w is not None:
+                    loss = (loss * sub_w[idx.to(device)]).mean()
             scaler.scale(loss).backward()
             scaler.step(opt); scaler.update()
             loss_sum += loss.item() * len(y); correct += (out.argmax(1) == y).sum().item(); n += len(y)

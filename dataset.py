@@ -2,12 +2,21 @@
 dataset.py  -  turns rows of the split csv into (image tensor, label, row index).
 Used for training (augmentation on) and for prediction (augmentation off).
 """
+import re
+
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms as T
 
 import config as C
+
+def subtype_of(filename: str) -> str:
+    """BreaKHis tumour subtype from the filename: SOB_B_TA-14-4659-40-001.png -> 'TA'
+    (benign: A, F, PT, TA | malignant: DC, LC, MC, PC)."""
+    m = re.match(r"SOB_[BM]_([A-Z]+)-", str(filename), re.IGNORECASE)
+    return m.group(1).upper() if m else "?"
+
 
 MEAN, STD = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)   # ImageNet stats (pretrained backbone)
 

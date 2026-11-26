@@ -50,7 +50,8 @@ if __name__ == "__main__":
     run(["prepare_data.py", "--seed", "999"], env=env)
     run(["cache_images.py", "--split-csv", "data/split_seed999.csv", "--img-size", "64", "--workers", "2"])
     run(["train.py", "--split-csv", "data/split_seed999.csv", "--tag", "smoke", "--no-pretrained",
-         "--img-size", "64", "--epochs", "2", "--batch-size", "16", "--freeze-stages", "2", "--workers", "2"])
+         "--img-size", "64", "--epochs", "2", "--batch-size", "16", "--freeze-stages", "2", "--workers", "2",
+         "--subtype-weight", "balanced"])
     run(["predict.py", "--checkpoint", "checkpoints/shared_smoke.pth", "--split-csv", "data/split_seed999.csv"])
     run(["escalate.py", "--preds", "results/preds_smoke.csv"])
     print("\nSMOKE TEST PASSED - the pipeline runs end to end on your machine.")

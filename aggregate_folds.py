@@ -27,6 +27,7 @@ def main():
     ap.add_argument("--preds", nargs="+", required=True)
     ap.add_argument("--prob-col", default="p_cal", choices=["p_cal", "p_raw"])
     ap.add_argument("--margin", type=float, default=0.01)
+    ap.add_argument("--tag", default="kfold", help="prefix of the output files (use a new tag for a new run)")
     args = ap.parse_args()
 
     files = sorted({f for pat in args.preds for f in (glob.glob(pat) or [pat])})
@@ -99,11 +100,11 @@ def main():
         bad = s[s.acc < 0.5]
         say(f"  {name:9s}: {len(bad)} of {len(s)} patients  " + (", ".join(bad.index) if len(bad) else ""))
 
-    per.to_csv(C.RESULTS_DIR / "kfold_per_fold.csv", index=False)
-    tab.to_csv(C.RESULTS_DIR / "kfold_pooled.csv", index=False)
-    pp_.to_csv(C.RESULTS_DIR / "kfold_patient_accuracy.csv")
-    (C.RESULTS_DIR / "kfold_summary.txt").write_text("\n".join(lines), encoding="utf-8")
-    say("\nSaved kfold_summary.txt / kfold_per_fold.csv / kfold_pooled.csv / kfold_patient_accuracy.csv in results/")
+    per.to_csv(C.RESULTS_DIR / f"{args.tag}_per_fold.csv", index=False)
+    tab.to_csv(C.RESULTS_DIR / f"{args.tag}_pooled.csv", index=False)
+    pp_.to_csv(C.RESULTS_DIR / f"{args.tag}_patient_accuracy.csv")
+    (C.RESULTS_DIR / f"{args.tag}_summary.txt").write_text("\n".join(lines), encoding="utf-8")
+    say(f"\nSaved {args.tag}_summary.txt / {args.tag}_per_fold.csv / {args.tag}_pooled.csv / {args.tag}_patient_accuracy.csv in results/")
 
 
 if __name__ == "__main__":
